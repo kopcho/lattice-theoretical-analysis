@@ -239,7 +239,7 @@ The Data Lattice fills this gap, enabling a new class of **"serverless" applicat
 ### 12.2 The Infrastructure for the Agentic Economy (AI)
 As AI transitions from "Chatbots" to "Autonomous Agents," storage becomes the bottleneck.
 * **The Problem:** Autonomous Agents cannot "sign up" for Dropbox. They cannot pass KYC, handle 2FA, or pay monthly credit card subscriptions for S3 buckets.
-* **The Lattice Solution:** DLFS provides a permissionless, cryptographic filesystem. An AI Agent can generate a keypair, pay for storage in micro-transactions (Coppers), and read/write complex data structures without human intervention.
+* **The Lattice Solution:** DLFS provides a permissionless, cryptographic filesystem. An AI Agent can generate a keypair, pay for storage in micro-transactions, and read/write complex data structures without human intervention.
 
 **The Market Surface:**
 The Data Lattice creates a viable **general-purpose, writable storage layer** for the Machine-to-Machine (M2M) Economy. It allows fleets of AI agents to share datasets, model weights, and task logs globally, with cryptographic provenance and zero administrative overhead.
