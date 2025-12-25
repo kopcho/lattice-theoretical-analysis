@@ -76,7 +76,7 @@ This property enables **Offline-First** and **Local-First** operations. A user c
 ### 2.3 The Merge Context
 A distinct innovation in the Convex Lattice implementation is the introduction of the Merge Context. The merge is a function of three inputs:
 
-$\text{New Value} = \text{Merge}(\text{Context}, \text{Existing Value}, \text{Received Value})$
+New Value = Merge(Context, Existing Value, Received Value)
 
 This allows for **Conditional Acceptance Rules**. A node can reject a merge if the cryptographic signatures in the Received Value do not match the authorization requirements derived from the Context.
 
