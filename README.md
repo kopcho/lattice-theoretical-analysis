@@ -53,15 +53,15 @@ In the specific context of the Convex Data Lattice storage substrate, the system
 
 #### 1. Commutativity
 The order in which data updates are received by a node is mathematically irrelevant. In a peer-to-peer network, latency and jitter make message arrival non-deterministic. Commutativity ensures that if Node X receives Update A then B, and Node Y receives B then A, both arrive at the exact same state.
-$A \cup B = B \cup A$
+A ∪ B = B ∪ A
 
 #### 2. Associativity
 The grouping of merge operations does not impact the result. This property is critical for network scalability, as it allows intermediate nodes to aggregate updates from multiple peers before propagating a single, unified update ("merge coalescing").
-$(A \cup B) \cup C = A \cup (B \cup C)$
+(A ∪ B) ∪ C = A ∪ (B ∪ C)
 
 #### 3. Idempotency
 Applying the same update multiple times produces no changing effect on the state. This allows for "at-least-once" delivery semantics, ensuring that receiving the same packet ten times does not corrupt the state.
-$A \cup A = A$
+A ∪ A = A
 
 These properties ensure the Data Lattice forms a **Monotonic** system. Information flows "upward" in the lattice order; the system accumulates knowledge and converges toward a unified state.
 
