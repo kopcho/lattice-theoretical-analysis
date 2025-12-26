@@ -107,7 +107,7 @@ Underpinning the Data Lattice is **Etch**, a specialized database engine built f
 A common criticism of decentralized P2P storage (like BitTorrent) is that it "hammers" hard drives with random writes as chunks arrive out of order. Etch solves this by operating as an **Append-Only** store.
 * **Sequential Writes:** Etch never overwrites data in place. New data is simply appended to the end of the storage file.
 * **Hardware Physics:** This design aligns perfectly with modern SSDs, which favor sequential writes over random IOPS.
-* **Zero-Cost Snapshots:** Because history is never overwritten, "snapshotting" the database is an instantaneous $O(1)$ operation—it is simply a pointer to a specific byte offset in the log.
+* **Zero-Cost Snapshots:** Because history is never overwritten, "snapshotting" the database is an instantaneous O(1) operation—it is simply a pointer to a specific byte offset in the log.
 
 ### 4.2 Optimized for Trees
 Traditional databases are typically optimized for tabular (SQL) or flat document (NoSQL) data. Etch is optimized for hierarchical, graph-based data, minimizing the I/O operations required to traverse deep Merkle graphs.
@@ -191,7 +191,7 @@ In a content-addressable network, privacy is achieved through **Encryption**. Pr
 The Data Lattice introduces a distinct economic model separate from CVM transaction fees.
 * **Self-Hosting:** Users can host their own data on their own devices for free.
 * **Pinned Storage:** Users can pay "Lattice Providers" (Storage Nodes) to "pin" their data for high availability.
-* **Micro-transactions:** The Convex Coin is divisible into 1,000,000,000 units ("coppers"), allowing for granular storage payments.
+* **Micro-transactions:** A fungible token is divisible into 1,000,000,000 units, allowing for granular storage payments within an application, independent of the native Convex Coin used for network consensus.
 
 ---
 
