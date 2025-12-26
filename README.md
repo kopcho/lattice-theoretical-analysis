@@ -16,7 +16,7 @@
 3. [The Data Lattice Architecture (CAD024)](#3-the-data-lattice-architecture-cad024)
 4. [The Etch Storage Engine](#4-the-etch-storage-engine)
 5. [The Data Lattice File System (DLFS) - CAD028](#5-the-data-lattice-file-system-dlfs---cad028)
-6. [Network Transport and Replication](#6-network-transport-and-replication)
+6. [Network Transport and Replication (CAD015/CAD017)](#6-network-transport-and-replication-cad015cad017)
 7. [Integration with Convex Global State (CVM)](#7-integration-with-the-convex-global-state-cvm)
 8. [Security, Identity, and Access Control](#8-security-identity-and-access-control)
 9. [Economic Models and Tokenomics](#9-economic-models-and-tokenomics)
@@ -32,7 +32,7 @@
 
 The trajectory of decentralized distributed systems has historically been constrained by a fundamental architectural bottleneck: the monolithic coupling of transaction processing (consensus) with data storage (state). Early distributed ledger technologies (DLT) operated on the premise that for a network to be truly trustless, every participant must validate, store, and order every piece of data.
 
-While effective for simple financial transactions, this model imposes severe limitations on scalability. It manifests as "state bloat"—a condition where the computational and storage costs of maintaining the ledger grow exponentially with usage.
+While effective for simple financial transactions, this model imposes severe limitations on scalability. It manifests as "state bloat"—a condition where the computational and storage costs of maintaining the ledger grow exponentially with usage, rendering the system prohibitively expensive for data-intensive applications such as media streaming, complex gaming environments, or enterprise-grade document management.
 
 This research report presents a comprehensive technical analysis of the **Convex Data Lattice** and its primary application layer, the **Data Lattice File System (DLFS)**. Based on the architectural specifications defined in the Convex Architecture Documents (CADs)—specifically CAD024 (Data Lattice) and CAD028 (DLFS)—this analysis explores a paradigm shift in decentralized topology: the decoupling of Global State from Content-Addressable Storage.
 
@@ -97,20 +97,42 @@ Data is retrieved based on *what* it is, not *where* it is.
 * **Immutability:** One cannot "change" a file in the Data Lattice in place. If a user modifies a single byte, the hash changes, propagating up to the root. The old data remains accessible at its original hash.
 * **Structural Sharing (Deduplication):** If User A and User B upload the exact same file, the system computes the same hashes. The storage engine stores the data only once. Both users simply hold a pointer to the same physical bytes.
 
+### 3.3 Data Type System (CAD003) & Limits
+The Lattice supports a rich, strongly-typed system compatible with the CVM:
+* **Primitives:** Integers (64-bit and Big Int), Doubles, Characters, Booleans.
+* **Collections:** Vectors (ordered lists), Maps (key-value), Sets.
+* **Symbols:** **Max 128 bytes.** A Symbol must have a length of 1 to 128 bytes, expressed in UTF-8 encoding. This limit ensures that symbols are small enough to always be treated as embedded values in encodings.
+
 ---
 
 ## 4. The Etch Storage Engine
 
-Underpinning the Data Lattice is **Etch**, a specialized database engine built from scratch by the Convex Foundation to handle the unique physics of Merkle DAGs.
+Underpinning the Data Lattice is **Etch**, a specialized, embedded storage engine custom-built for the Convex network. It is not a traditional SQL or generic Key-Value store; it is an append-only, memory-mapped database optimized specifically to handle Decentralized Data Values (DDVs) and Merkle Trees.
 
-### 4.1 The "Append-Only" Advantage (Solving the BitTorrent Problem)
+
+
+### 4.1 Fundamental Architecture: Cells and CAS
+The atomic storage unit in Etch is called a **Cell**.
+* **1-to-1 Mapping:** A Cell represents a value in the CVM (e.g., a Vector, Map, or Integer).
+* **Cryptographic Determinism (CAD002/003):** The Value ID is defined as the **SHA3-256** hash of the value's *canonical encoding*. This ensures that a data structure (like a Map) hashes to the exact same 32-byte Value ID regardless of key insertion order or peer architecture.
+* **Immutability:** Once written, a Cell cannot be changed. If the data changes, the hash changes, resulting in a new Cell. This allows the database to be "append-only," eliminating the need for complex index updates or cache invalidation logic.
+
+### 4.2 Orthogonal Persistence & Memory Overhead
+Etch implements **Orthogonal Persistence**, meaning the developer does not write code to "save" or "load" data. The CVM State tree is virtual and may be larger than physical RAM.
+* **JVM Integration:** The reference implementation utilizes Java's `SoftReference` system. Objects exist in RAM as standard heap objects.
+* **Fixed Memory Overhead:** The memory accounting system adds a fixed allowance of **64 bytes** per complete (non-embedded) cell to cover indexing and storage overheads.
+* **Automatic Paging:** When memory pressure increases, the Garbage Collector evicts these objects. If code accesses them later, Etch automatically faults them back in from the disk (memory mapping).
+
+### 4.3 Structural Optimization
+Etch is constructed around the specific canonical encoding requirements of the CVM.
+* **Embedding:** To minimize disk seeks, small values (encodings up to 140 bytes) are not stored as separate Cells but are embedded directly inside the encoding of their parent Cell.
+* **Structural Sharing:** Because Cells contain references (hashes) to child Cells, the storage naturally forms a Merkle Directed Acyclic Graph (DAG). If two different users upload the same file (or two data structures share a common tail), Etch stores that sub-component only once.
+
+### 4.4 The "Append-Only" Advantage (Solving the BitTorrent Problem)
 A common criticism of decentralized P2P storage (like BitTorrent) is that it "hammers" hard drives with random writes as chunks arrive out of order. Etch solves this by operating as an **Append-Only** store.
 * **Sequential Writes:** Etch never overwrites data in place. New data is simply appended to the end of the storage file.
 * **Hardware Physics:** This design aligns perfectly with modern SSDs, which favor sequential writes over random IOPS.
 * **Zero-Cost Snapshots:** Because history is never overwritten, "snapshotting" the database is an instantaneous O(1) operation—it is simply a pointer to a specific byte offset in the log.
-
-### 4.2 Optimized for Trees
-Traditional databases are typically optimized for tabular (SQL) or flat document (NoSQL) data. Etch is optimized for hierarchical, graph-based data, minimizing the I/O operations required to traverse deep Merkle graphs.
 
 ---
 
@@ -144,17 +166,35 @@ To solve the "Ghost File" problem in distributed systems, DLFS utilizes **Tombst
 
 ---
 
-## 6. Network Transport and Replication
+## 6. Network Transport and Replication (CAD015/CAD017)
 
-The mechanism that moves data between Etch instances is the P2P Lattice.
+Based on CAD015 and CAD017, the networking and gossip protocol is a specialized mechanism designed to support the unique requirements of the Lattice. Unlike blockchains that often rely on flooding blocks, Convex uses a sophisticated random gossip protocol optimized for Convergent Replicated Data Types (CvRDTs).
 
-### 6.1 The Gossip Protocol
-The Lattice relies on a Gossip Protocol. Nodes periodically exchange information about the state of the lattice values they are tracking. If a peer has a newer state, the nodes initiate a synchronization process.
+### 6.1 The Message Structure (CAD015)
+Convex peers communicate via atomic, asynchronous messages. A unique feature of the Convex protocol is that messages support partial data transmission to maximize efficiency.
+* **Components:** A message consists of a Type Tag, an Encoded Payload (a Cell), and optionally, Branch Encodings.
+* **Partiality:** A message can transmit a large data structure (like a Block) without including every single byte. If the sender assumes the receiver already has parts of the tree (due to structural sharing), they can omit those branches. This allows large structures to be passed as "deltas".
+* **Resolution:** If a receiving Peer gets a "partial" message but is missing a specific chunk of data, it sends a **MISSING_DATA** request referencing the specific Value ID (hash) it needs.
 
-### 6.2 Efficiency Mechanisms
-* **Delta Transmission:** Nodes compare Merkle trees to identify differing branches. Only the "Deltas" (changed branches) are transmitted.
-* **Merge Coalescing:** Nodes "coalesce" updates from multiple peers into a single merge operation before broadcasting, reducing network chatter.
-* **Smart (Lazy) Loading:** When an application requests data, the system only loads the specific "cells" required.
+### 6.2 Message Types
+The protocol defines specific message types to handle consensus and data synchronization:
+* **BELIEF:** The core gossip message. It contains the Peer's current view of the network consensus. Because Beliefs are CvRDTs, receiving peers simply merge this incoming belief with their own. This merge is idempotent.
+* **MISSING_DATA:** A request for a specific piece of data (by hash).
+* **DATA:** The response providing the specific Cell encoding.
+* **TRANSACT:** A client/peer submitting a transaction for the next block.
+* **QUERY:** A read-only request to compute a result from the current state.
+
+### 6.3 Efficiency: Novelty Detection
+The gossip protocol is tightly integrated with the Etch storage system to prevent bandwidth waste.
+* **The Problem:** Re-broadcasting massive data structures (like block history) wastes bandwidth.
+* **The Solution:** When a Peer updates its Belief, Etch identifies exactly which parts of that structure are **"Novelty"** (newly moved to a higher status level). The Peer only broadcasts the novelty to the network.
+* **Result:** Bandwidth usage scales with the rate of new transaction data, not the total history size.
+
+### 6.4 Connection Topology (CAD017)
+Peers maintain a managed list of outgoing connections to propagate gossip efficiently.
+* **Stake-Weighted Selection:** Peers preferentially connect to other Peers that have high Stake. This ensures that nodes critical to consensus are well-connected and prevents isolation attacks by low-stake peers.
+* **Target Count:** A Peer typically maintains a constant number of outgoing connections (e.g., 20) determined by available bandwidth.
+* **Latency:** The combined effect of partial messages and stake-weighted gossip ensures the network converges on a global state with O(log n) latency.
 
 ---
 
@@ -166,11 +206,12 @@ The Data Lattice operates in symbiosis with the Convex Virtual Machine (CVM), cr
 While the Lattice stores bulk data, the CVM stores trust anchors.
 * **Anchoring:** A smart contract on the CVM can store the Root Hash of a DLFS drive, providing a timestamped, tamper-proof proof of existence.
 * **Identity Resolution:** The CVM hosts the Convex Name System (CNS), mapping human-readable names to DIDs and public keys.
+* **Remote Execution (`eval-as`):** The CVM includes the `eval-as` function, which allows a controller account to execute code within the environment of a target account. This enables complex, permissioned orchestration where an Agent can programmatically manipulate Lattice structures on behalf of a user.
 
 ### 7.2 The Hybrid dApp Model
 * **On-Chain (CVM):** Handles logic requiring strict global consensus (Tokens, ownership registries).
 * **Off-Chain (Lattice):** Handles high-volume data (Images, video, frontend code).
-* **Example (NFTs):** The Lattice stores the high-resolution artwork and metadata; the CVM stores the Token containing the hash of that content.
+* **Example (NFTs):** The Lattice stores the high-resolution artwork and metadata; the CVM stores the Token containing the hash of that content. The on-chain token acts as the "Title Deed" to the off-chain "Property".
 
 ---
 
@@ -191,8 +232,7 @@ In a content-addressable network, privacy is achieved through **Encryption**. Pr
 The Data Lattice introduces a distinct economic model separate from CVM transaction fees.
 * **Self-Hosting:** Users can host their own data on their own devices for free.
 * **Pinned Storage:** Users can pay "Lattice Providers" (Storage Nodes) to "pin" their data for high availability.
-* **Micro-transactions:** A fungible token is divisible into 1,000,000,000 units, allowing for granular storage payments within an application, independent of the native Convex Coin used for network consensus.
-
+* **Micro-transactions:** A Fungible Token is divisible into 1,000,000,000 units, allowing for granular storage payments within an application, independent of the native Convex Coin used for network consensus.
 ---
 
 ## 10. Performance Dynamics and Physics
@@ -239,7 +279,7 @@ The Data Lattice fills this gap, enabling a new class of **"serverless" applicat
 ### 12.2 The Infrastructure for the Agentic Economy (AI)
 As AI transitions from "Chatbots" to "Autonomous Agents," storage becomes the bottleneck.
 * **The Problem:** Autonomous Agents cannot "sign up" for Dropbox. They cannot pass KYC, handle 2FA, or pay monthly credit card subscriptions for S3 buckets.
-* **The Lattice Solution:** DLFS provides a permissionless, cryptographic filesystem. An AI Agent can generate a keypair, pay for storage in micro-transactions, and read/write complex data structures without human intervention.
+* **The Lattice Solution:** DLFS provides a permissionless, cryptographic filesystem. An AI Agent can generate a keypair, pay for storage in micro-transactions (Coppers), and read/write complex data structures without human intervention.
 
 **The Market Surface:**
 The Data Lattice creates a viable **general-purpose, writable storage layer** for the Machine-to-Machine (M2M) Economy. It allows fleets of AI agents to share datasets, model weights, and task logs globally, with cryptographic provenance and zero administrative overhead.
