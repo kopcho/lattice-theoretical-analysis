@@ -233,6 +233,7 @@ The Data Lattice introduces a distinct economic model separate from CVM transact
 * **Self-Hosting:** Users can host their own data on their own devices for free.
 * **Pinned Storage:** Users can pay "Lattice Providers" (Storage Nodes) to "pin" their data for high availability.
 * **Micro-transactions:** A Fungible Token is divisible into 1,000,000,000 units, allowing for granular storage payments within an application, independent of the native Convex Coin used for network consensus.
+
 ---
 
 ## 10. Performance Dynamics and Physics
